@@ -1,0 +1,117 @@
+---
+title: "Sarah Sweeney Final Presentation"
+output: html_notebook
+---
+```{r}
+install.packages(c('syuzhet','scales','reshape2'))
+```
+
+```{r}
+library(rvest)
+library(tidyverse)
+library(tm)
+library(wordcloud)
+library(syuzhet)
+library(lubridate)
+library(ggplot2)
+library(scales)
+library(reshape2)
+library(dplyr)
+```
+
+```{r}
+```
+
+
+```{r}
+tslaTweets <- read.csv(file.choose(), header=T)
+```
+
+```{r}
+str(tslaTweets)
+textbody <- iconv(tslaTweets$Comments, to="utf-8-mac")
+textbody <- Corpus(VectorSource(textbody))
+inspect(textbody[1:5])
+```
+
+#cleaning text
+```{r}
+textbody <- tm_map(textbody, tolower)
+
+textbody <- tm_map(textbody, removePunctuation)
+textbody <- tm_map(textbody, removeNumbers)
+
+#removing 'common' words in English -- don't add much value to our sentiment analysis
+cleanset <- tm_map(textbody, removeWords, stopwords('english'))
+
+#removing newline special char
+removeSpecialChars <- function(x) gsub("\n","",x)
+cleanset <- tm_map(cleanset,removeSpecialChars)
+
+#stripping whitespace created by "cleaning" (word, char deletion, etc.)
+cleanset <- tm_map(cleanset, stripWhitespace)
+
+#removing obvious words -- our dataset is a csv of tsla tweets, obviously that will be most common #word
+cleanset <- tm_map(cleanset, removeWords, c('tsla','tesla', 'elon','musk', 'replying', 'elonmusk','will'))
+```
+
+#our text data is largely unstructured. we must convert it to structured data via a term document matrix
+#binary representation of presence of keyword in each tweet (1 = present, 0 = not present)
+```{r}
+tdm <- TermDocumentMatrix(cleanset)
+tdm
+tdm <- as.matrix(tdm)
+tdm[1:10, 1:20]
+```
+
+#bar plot of word frequency -- this will tell us how often each word appears
+```{r}
+w <- rowSums(tdm)
+w <- subset(w, w>=20)
+barplot(w, las=2, col=rainbow(50))
+```
+```{r}
+#sort by frequency
+w <- sort(rowSums(tdm), decreasing=TRUE)
+set.seed(222)
+wordcloud(words = names(w), 
+          freq = w, 
+          max.words=200, 
+          random.order=F,
+          min.freq=5,
+          colors = brewer.pal(8, 'Paired'))
+```
+#modifications with wordcloud2 -- newer, fancier version i guess?
+```{r}
+library(wordcloud2)
+w <- data.frame(names(w), w)
+colnames(w) <- c('word','freq')
+wordcloud2(w,
+           size = 0.5,
+           shape = 'circle')
+```
+
+```{r}
+#letterCloud(w,word="TSLA", wordSize=0.5)
+```
+
+#sentiment analysis
+```{r}
+tslaTweets <- read.csv(file.choose(), header=T)
+tweets <- iconv(tslaTweets$Comments, to="utf-8-mac")
+```
+
+#obtain sentiment scores
+```{r}
+#uses sentiment dictionary
+s <- get_nrc_sentiment(tweets)
+head(s)
+```
+```{r}
+#barplot
+barplot(colSums(s),
+        las=2,
+        col=rainbow(10),
+        ylab='Count',
+        main='Sentiment Scores for TSLA Tweets')
+```
